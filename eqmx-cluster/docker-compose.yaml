@@ -1,0 +1,90 @@
+version: '3'
+
+services:
+  emqx1:
+    image: emqx/emqx:v4.3.10
+    ports:
+      - "1883:1883"
+      - "18083:18083"
+      - "8083:8083"
+      - "8084:8084"
+    environment:
+    - "EMQX_NAME=emqx"
+    - "EMQX_HOST=node1.emqx.local"
+    - "EMQX_ACL_NOMATCH=deny"
+    - "EMQX_ALLOW_ANONYMOUS=false"
+    - "EMQX_CLUSTER__DISCOVERY=static"
+    - "EMQX_CLUSTER__STATIC__SEEDS=emqx@node1.emqx.local, emqx@node2.emqx.local"
+    - "EMQX_ZONE__EXTERNAL__RETRY_INTERVAL=2s"
+    - "EMQX_MQTT__MAX_TOPIC_ALIAS=10"
+    - "EMQX_MQTT__CACHE_ACL=true"
+    - "EMQX_AUTH__MYSQL__SERVER=mysql:3306"
+    - "EMQX_AUTH__MYSQL__POOL=8" 
+    - "EMQX_AUTH__MYSQL__USERNAME=root" 
+    - "EMQX_AUTH__MYSQL__PASSWORD=jok3rComp0se" 
+    - "EMQX_AUTH__MYSQL__DATABASE=db_iot" 
+    - "EMQX_AUTH__MYSQL__QUERY_TIMEOUT=5s" 
+    - "EMQX_AUTH__MYSQL__PASSWORD_HASH=SHA256" 
+    - "EMQX_AUTH__MYSQL__AUTH_QUERY=SELECT password from iot_mqtt_user WHERE username = '% U' and del_flag = 0 limit 1" 
+    - "EMQX_AUTH__MYSQL__SUPER_QUERY=SELECT is_superuser from iot_mqtt_user where username = '%u' and del_flag = 0" 
+    - "EMQX_AUTH__MYSQL__ACL_QUERY=select 0 as allow, null as ipaddr, '%u' as username, null as clientid, 3 as access, '/#' as topic union select 1 as allow, null as ipaddr, username, null as clientid, access , topic from iot_mqtt_acl WHERE username = '%u' and del_flag = 0"
+    volumes: 
+    -  ./loaded_plugins:/opt/emqx/data/loaded_plugins:z
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx_ctl", "status"]
+      interval: 5s
+      timeout: 25s
+      retries: 5
+    networks:
+      emqx-bridge:
+        aliases:
+        - node1.emqx.local
+
+  emqx2:
+    image: emqx/emqx:v4.3.10
+    environment:
+    - "EMQX_NAME=emqx"
+    - "EMQX_HOST=node2.emqx.local"
+    - "EMQX_ACL_NOMATCH=deny"
+    - "EMQX_ALLOW_ANONYMOUS=false"
+    - "EMQX_CLUSTER__DISCOVERY=static"
+    - "EMQX_CLUSTER__STATIC__SEEDS=emqx@node1.emqx.local, emqx@node2.emqx.local"
+    - "EMQX_ZONE__EXTERNAL__RETRY_INTERVAL=2s"
+    - "EMQX_MQTT__MAX_TOPIC_ALIAS=10"
+    - "EMQX_MQTT__CACHE_ACL=true"
+    - "EMQX_AUTH__MYSQL__SERVER=mysql:3306"
+    - "EMQX_AUTH__MYSQL__POOL=8" 
+    - "EMQX_AUTH__MYSQL__USERNAME=root" 
+    - "EMQX_AUTH__MYSQL__PASSWORD=jok3rComp0se" 
+    - "EMQX_AUTH__MYSQL__DATABASE=db_iot" 
+    - "EMQX_AUTH__MYSQL__QUERY_TIMEOUT=5s" 
+    - "EMQX_AUTH__MYSQL__PASSWORD_HASH=SHA256" 
+    - "EMQX_AUTH__MYSQL__AUTH_QUERY=SELECT password from iot_mqtt_user WHERE username = '% U' and del_flag = 0 limit 1" 
+    - "EMQX_AUTH__MYSQL__SUPER_QUERY=SELECT is_superuser from iot_mqtt_user where username = '%u' and del_flag = 0" 
+    - "EMQX_AUTH__MYSQL__ACL_QUERY=select 0 as allow, null as ipaddr, '%u' as username, null as clientid, 3 as access, '/#' as topic union select 1 as allow, null as ipaddr, username, null as clientid, access , topic from iot_mqtt_acl WHERE username = '%u' and del_flag = 0"
+    volumes: 
+    -  ./loaded_plugins:/opt/emqx/data/loaded_plugins:z
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx_ctl", "status"]
+      interval: 5s
+      timeout: 25s
+      retries: 5
+    networks:
+      emqx-bridge:
+        aliases:
+        - node2.emqx.local
+  mysql:
+    image: "mysql:5.7.14"
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "jok3rComp0se"
+      MYSQL_RANDOM_ROOT_PASSWORD: "true"
+    volumes:
+      - ./mysql/mysql.conf.d:/etc/mysql/mysql.conf.d
+      - ./mysql/data:/var/lib/mysql
+      - ./mysql/init.sql:/data/application/init.sql
+networks:
+  emqx-bridge:
+    driver: bridge
